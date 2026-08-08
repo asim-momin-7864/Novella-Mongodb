@@ -1,7 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { env } from '#config/env.config.js';
-import User from '#models/user.model.js';
 import { AppError } from '#errors/AppError.js';
 
 interface DecodedToken extends jwt.JwtPayload {
@@ -24,15 +23,21 @@ export const protectRoute = async (
     // 2) Verify token
     const decoded = jwt.verify(token, env.JWT_SECRET as string) as DecodedToken;
 
-    // 3) Check if user still exists
-    const currentUser = await User.findById(decoded.userId).select('-password');
-    if (!currentUser) {
-      return next(new AppError('Unauthorized - User not found', 401));
+    // check
+    if (!decoded || !decoded.userId) {
+      throw new AppError('Unauthorized - Invalid Token Payload', 401);
     }
+
+    //! Not needed, we are alredy verifying it with JWT
+    // 3) Check if user still exists
+    // const currentUser = await User.findById(decoded.userId).select('-password');
+    // if (!currentUser) {
+    //   return next(new AppError('Unauthorized - User not found', 401));
+    // }
 
     // 4) Grant access to protected route by attaching user ID to request
     req.user = {
-      _id: currentUser._id,
+      _id: decoded.userId,
     };
 
     next();
