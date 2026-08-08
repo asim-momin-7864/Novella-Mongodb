@@ -5,7 +5,7 @@ import { Types } from 'mongoose';
 
 // user object interface
 export interface UserPayload {
-  _id: Types.ObjectId | string;
+  id: Types.ObjectId | string;
 }
 
 // globally mergining
