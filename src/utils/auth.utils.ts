@@ -1,10 +1,10 @@
 import jwt from 'jsonwebtoken';
 import { Response } from 'express';
 import { env } from '#config/env.config.js';
-import mongoose from 'mongoose';
+import { UserParamsInput } from '#dtos/auth.dto.js';
 
 export const generateTokenAndSetCookie = (
-  userId: string | mongoose.Types.ObjectId,
+  userId: string | UserParamsInput['id'],
   res: Response
 ): string => {
   // Generate JWT token
