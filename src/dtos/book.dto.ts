@@ -1,71 +1,47 @@
 //*  book ( text values) dto
 
-import * as z from 'zod';
-
-// book genre
-const BOOK_GENERS = [
-  'Fiction',
-  'Non-Fiction',
-  'Mystery',
-  'Thriller',
-  'Science Fiction',
-  'Fantasy',
-  'Romance',
-  'Historical Fiction',
-  'Horror',
-  'Biography',
-  'Autobiography',
-  'Memoir',
-  'Self-Help',
-  'Health',
-  'Guide',
-  'Travel',
-  'Childrens',
-  'Religion',
-  'Spirituality',
-  'Science',
-  'History',
-  'Math',
-  'Anthology',
-  'Poetry',
-  'Encyclopedias',
-  'Dictionaries',
-  'Comics',
-  'Art',
-  'Cookbooks',
-  'Diaries',
-  'Journals',
-  'Action and Adventure',
-  'Graphic Novel',
-] as const;
-
-// zod enum
-const genreEnum = z.enum(BOOK_GENERS);
+import { z } from 'zod';
+import { booksTable } from '#db/schema.js';
+import { createInsertSchema, createUpdateSchema } from 'drizzle-orm/zod';
 
 // create book dto
-export const createBookSchema = z.object({
-  title: z.string().min(1, { message: 'title required' }).trim(),
-  author: z.string().min(1, { message: 'author name is required' }).trim(),
-  pages: z.coerce.number().int().positive('Pages must be positive'),
-  // how we handler genre send by duplicate keys method as input
-
-  genre: z.preprocess(
-    (val) => {
-      // user selected multiple generes
-      if (Array.isArray(val)) return val;
-
-      // if use only selected one genre (then Express make it string)
-      if (typeof val === 'string') return [val];
-
-      // if nothing gets (no expected case)
-      return [];
-    },
-    z.array(genreEnum).min(1, { message: 'genre is required' })
-  ),
+export const createBookDto = createInsertSchema(booksTable, {
+  title: (schema) => schema.min(1, 'Title is required').trim(),
+  author: (schema) => schema.min(1, 'Author name is required').trim(),
+  pages: (schema) => schema.min(1, 'Pages are required'),
+}).omit({
+  id: true,
+  ownerId: true,
+  createdAt: true,
+  updatedAt: true,
+  coverPublicId: true,
+  coverUrl: true,
+  filePublicId: true,
+  fileUrl: true,
 });
 
 // update book dto
-export const updateBookSchema = createBookSchema.partial();
+export const updateBookDto = createUpdateSchema(booksTable, {
+  title: (schema) => schema.min(1, 'Title is required').trim(),
+  author: (schema) => schema.min(1, 'Author name is required').trim(),
+  pages: (schema) => schema.min(1, 'Pages are required'),
+}).omit({
+  id: true,
+  ownerId: true,
+  createdAt: true,
+  updatedAt: true,
+  coverPublicId: true,
+  coverUrl: true,
+  filePublicId: true,
+  fileUrl: true,
+});
 
-export type CreateBookDto = z.infer<typeof createBookSchema>;
-export type UpdateBookDto = z.infer<typeof updateBookSchema>;
+// params
+export const bookParamsDto = z.object({
+  id: z.uuid('Invalid book ID'),
+});
+
+//TS types
+export type CreateBookInput = z.infer<typeof createBookDto>;
+export type UpdateBookInput = z.infer<typeof updateBookDto>;
+export type BookParamsInput = z.infer<typeof bookParamsDto>;
