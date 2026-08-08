@@ -28,7 +28,7 @@
       "#dtos/*": ["./src/dtos/*"],
       "#errors/*": ["./src/errors/*"],
       "#middlewares/*": ["./src/middlewares/*"],
-      "#models/*": ["./src/models/*"],
+      "#db/*": ["./src/db/*"],
       "#routes/*": ["./src/routes/*"],
       "#utils/*": ["./src/utils/*"],
       "#types/*": ["./src/types/*"]
