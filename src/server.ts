@@ -1,14 +1,20 @@
 //* server
 import '#config/zod.config.js';
-
 import app from './app.js';
-import { connectDB } from '#config/db.config.js';
 import { env } from '#config/env.config.js';
 import { logger } from '#utils/logger.js';
+import { db } from '#db/index.js';
 
 // server func
 const startServer = async () => {
-  await connectDB();
+  // db start test
+  try {
+    await db.execute('select 1');
+    logger.info('Database connected successfully');
+  } catch (error) {
+    logger.error({ error }, 'Database connection failed');
+    process.exit(1);
+  }
 
   // Boot express server
   const server = app.listen(env.PORT, () => {
