@@ -1,31 +1,26 @@
 /* global Express */
 //* book controller
-import Book from '#models/book.model.js';
 import { Request, Response, NextFunction } from 'express';
-import {
-  CreateBookDto,
-  createBookSchema,
-  UpdateBookDto,
-  updateBookSchema,
-} from '#dtos/book.dto.js';
 import { AppError } from '#errors/AppError.js';
 import { deleteFromCloudinary, upoadToCloudinary } from '#utils/cloudinaryStorage.js';
 import type { UploadApiResponse } from 'cloudinary';
+import { db } from '#db/index.js';
+import { booksTable } from '#db/schema.js';
+import { createBookDto, updateBookDto, bookParamsDto, UpdateBookInput } from '#dtos/book.dto.js';
+import { and, eq } from 'drizzle-orm';
 
 // create new book (upload)
-export const createBookController = async (
-  req: Request<unknown, unknown, CreateBookDto, unknown>,
-  res: Response,
-  next: NextFunction
-) => {
+export const createBookController = async (req: Request, res: Response, next: NextFunction) => {
   // parse data
-  const validatedData = createBookSchema.parse(req.body);
+  const validatedData = createBookDto.parse(req.body);
 
   // check already exist
-  const isBookExists = await Book.findOne({
-    title: validatedData.title,
-    author: validatedData.author,
-    pages: validatedData.pages,
+  const isBookExists = await db.query.booksTable.findFirst({
+    where: {
+      title: validatedData.title,
+      author: validatedData.author,
+      pages: validatedData.pages,
+    },
   });
 
   if (isBookExists) {
@@ -56,17 +51,24 @@ export const createBookController = async (
   const finalBookPublicId = bookUploadeResponse.public_id; // deletion
 
   // create new book in database
-  const newBook = await Book.create({
-    title: validatedData.title,
-    author: validatedData.author,
-    pages: validatedData.pages,
-    genre: validatedData.genre,
-    coverUrl: finalCoverUrl,
-    coverPublicId: finalCoverPublicId,
-    fileUrl: finalBookUrl,
-    filePublicId: finalBookPublicId,
-    ownerId: req.user!._id,
-  });
+  const newBookArray = await db
+    .insert(booksTable)
+    .values({
+      ...validatedData,
+      ownerId: req.user!.id,
+      coverUrl: finalCoverUrl,
+      coverPublicId: finalCoverPublicId,
+      fileUrl: finalBookUrl,
+      filePublicId: finalBookPublicId,
+    })
+    .returning();
+
+  // checl
+  if (newBookArray.length < 1) {
+    return next(new AppError('Failed to create book', 500));
+  }
+
+  const newBook = newBookArray[0];
 
   // send response
   res.status(201).json({
@@ -81,9 +83,13 @@ export const createBookController = async (
 // get all books
 export const getAllBooksController = async (_req: Request, res: Response, next: NextFunction) => {
   // get books from database
-  const allBooks = await Book.find({}).populate('ownerId', 'name');
+  const allBooksArray = await db.query.booksTable.findMany({
+    with: {
+      usersTable: true,
+    },
+  });
 
-  if (allBooks.length === 0) {
+  if (allBooksArray.length === 0) {
     return next(new AppError('No books found', 404));
   }
 
@@ -92,7 +98,7 @@ export const getAllBooksController = async (_req: Request, res: Response, next: 
     success: true,
     message: 'Books fetched successfully',
     data: {
-      allBooks,
+      allBooksArray,
     },
   });
 };
@@ -100,7 +106,14 @@ export const getAllBooksController = async (_req: Request, res: Response, next: 
 // get book :id
 export const getBookByIdController = async (req: Request, res: Response, next: NextFunction) => {
   // get book by id from database
-  const book = await Book.findById(req.params.id).populate('ownerId', 'name');
+  const validatedParams = bookParamsDto.parse(req.params);
+
+  // find book
+  const book = await db.query.booksTable.findFirst({
+    where: {
+      id: validatedParams.id,
+    },
+  });
 
   if (!book) {
     return next(new AppError('Book not found', 404));
@@ -117,27 +130,27 @@ export const getBookByIdController = async (req: Request, res: Response, next: N
 };
 
 // delete book controller
-export const deleteBookController = async (
-  req: Request<{ id: string }, unknown, unknown, unknown>,
-  res: Response,
-  next: NextFunction
-) => {
-  // params
-  const bookId: string = req.params.id;
+export const deleteBookController = async (req: Request, res: Response, next: NextFunction) => {
+  // validate params
+  const validatedParams = bookParamsDto.parse(req.params);
 
   // get book
-  const book = await Book.findById(bookId);
+  const book = await db.query.booksTable.findFirst({
+    where: {
+      id: validatedParams.id,
+    },
+  });
 
   if (!book) {
     return next(new AppError('Book not found', 404));
   }
 
   // check user is owner
-  const userId = req.user?._id.toString();
-  const bookOwnerId = book?.ownerId.toString();
+  const userId = req.user!.id;
+  const bookOwnerId = book.ownerId;
 
   if (userId !== bookOwnerId) {
-    return next(new AppError('UnAuthorized : you are not ownser of this book', 401));
+    return next(new AppError('UnAuthorized : you are not owner of this book', 401));
   }
 
   // delelte from cloudinary
@@ -145,7 +158,9 @@ export const deleteBookController = async (
   await deleteFromCloudinary(book.filePublicId as string);
 
   // delete from dß
-  await Book.findByIdAndDelete(bookId);
+  await db
+    .delete(booksTable)
+    .where(and(eq(booksTable.id, book.id), eq(booksTable.ownerId, book.ownerId)));
 
   // response
   res.status(200).json({
@@ -155,16 +170,16 @@ export const deleteBookController = async (
 };
 
 // update book controller
-export const updateBookController = async (
-  req: Request<{ id: string }, unknown, UpdateBookDto, unknown>,
-  res: Response,
-  next: NextFunction
-) => {
+export const updateBookController = async (req: Request, res: Response, next: NextFunction) => {
   // id
-  const bookId: string = req.params.id;
+  const validatedParams = bookParamsDto.parse(req.params);
 
   // get book
-  const book = await Book.findById(bookId);
+  const book = await db.query.booksTable.findFirst({
+    where: {
+      id: validatedParams.id,
+    },
+  });
 
   // check book exist or not
   if (!book) {
@@ -172,20 +187,19 @@ export const updateBookController = async (
   }
 
   // check user is owner
-  const userId = req.user?._id.toString();
-  const bookOwnerId = book?.ownerId.toString();
+  const userId = req.user!.id;
+  const bookOwnerId = book.ownerId;
 
   if (userId !== bookOwnerId) {
     return next(new AppError('UnAuthorized : you are not ownser of this book', 401));
   }
 
   // inpute parse
-  const validatedTextData = updateBookSchema.parse(req.body);
+  const validatedTextData = updateBookDto.parse(req.body);
 
   // check, which data is updating
   // for text data
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let updatedData: any = { ...validatedTextData };
+  let updatedData: UpdateBookInput = { ...validatedTextData };
 
   // for files data
   // type
@@ -227,11 +241,19 @@ export const updateBookController = async (
   }
 
   // updated data in DB
-  const updatedBook = await Book.findByIdAndUpdate(bookId, updatedData, {
-    new: true,
-    runValidators: true, // schema validation
-    context: 'query',
-  }).populate('ownerId', 'name');
+  const updatedBookArray = await db
+    .update(booksTable)
+    .set(updatedData)
+    .where(and(eq(booksTable.id, book.id), eq(booksTable.ownerId, bookOwnerId)))
+    .returning();
+
+  //check
+  if (updatedBookArray.length < 1) {
+    return next(new AppError('Failed to update book', 500));
+  }
+
+  // get updated book
+  const updatedBook = updatedBookArray[0];
 
   // send response
   res.status(200).json({
