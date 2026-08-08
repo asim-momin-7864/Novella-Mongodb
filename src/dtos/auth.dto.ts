@@ -26,7 +26,13 @@ export const updateUserDto = createUpdateSchema(usersTable, {
   updatedAt: true,
 });
 
+// user params id
+export const userParamsDto = z.object({
+  id: z.uuid('Invalid user ID'),
+});
+
 // TS types
 export type CreateUserInput = z.infer<typeof createUserDto>;
 export type LoginUserInput = z.infer<typeof loginUserDto>;
 export type UpdateUserInput = z.infer<typeof updateUserDto>;
+export type UserParamsInput = z.infer<typeof userParamsDto>;
