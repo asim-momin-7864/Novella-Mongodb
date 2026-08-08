@@ -30,10 +30,6 @@ export const updateBookDto = createUpdateSchema(booksTable, {
   ownerId: true,
   createdAt: true,
   updatedAt: true,
-  coverPublicId: true,
-  coverUrl: true,
-  filePublicId: true,
-  fileUrl: true,
 });
 
 // params
