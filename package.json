@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx watch -r tsconfig-paths/register src/server.ts",
     "build": "rimraf dist && tsc && tsc-alias",
-    "start": "node dist/server.js",
+    "start": "npm run db:push && node dist/server.js",
     "lint": "eslint src/**/*.ts",
     "lint:fix": "eslint src/**/*.ts --fix",
     "format": "prettier --write \"src/**/*.ts\"",
